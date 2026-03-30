@@ -1,0 +1,1488 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Nurse Call System - Enterprise</title>
+    
+    <!-- Google Fonts: Plus Jakarta Sans -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['"Plus Jakarta Sans"', 'sans-serif'], mono: ['ui-monospace', 'SFMono-Regular'] },
+                    colors: {
+                        brand: { 50: '#eff6ff', 100: '#dbeafe', 500: '#3b82f6', 600: '#2563eb', 800: '#1e40af', 900: '#1e3a8a', 950: '#172554' },
+                        dark: { 800: '#1e293b', 900: '#0f172a', 950: '#020617' }
+                    },
+                    animation: {
+                        'pulse-fast': 'pulse 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'marquee': 'marquee 25s linear infinite',
+                        'float': 'float 6s ease-in-out infinite',
+                        'blob': 'blob 7s infinite',
+                    },
+                    keyframes: {
+                        marquee: { '0%': { transform: 'translateX(100%)' }, '100%': { transform: 'translateX(-100%)' } },
+                        float: { '0%, 100%': { transform: 'translateY(0)' }, '50%': { transform: 'translateY(-10px)' } },
+                        blob: {
+                            '0%': { transform: 'translate(0px, 0px) scale(1)' },
+                            '33%': { transform: 'translate(30px, -50px) scale(1.1)' },
+                            '66%': { transform: 'translate(-20px, 20px) scale(0.9)' },
+                            '100%': { transform: 'translate(0px, 0px) scale(1)' }
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Libraries -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f8fafc; color: #334155; }
+        .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        /* Modern Glassmorphism Utilities */
+        .glass-panel { 
+            background: rgba(255, 255, 255, 0.7); 
+            backdrop-filter: blur(20px); 
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.8); 
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
+        }
+        .glass-dark { 
+            background: rgba(15, 23, 42, 0.65); 
+            backdrop-filter: blur(24px); 
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(255,255,255,0.1); 
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+        }
+        .glass-card-hover:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.15);
+        }
+
+        @keyframes ring { 0% { transform: rotate(0); } 5% { transform: rotate(15deg); } 10% { transform: rotate(-15deg); } 15% { transform: rotate(10deg); } 20% { transform: rotate(-10deg); } 25% { transform: rotate(0); } 100% { transform: rotate(0); } }
+        .animate-ring { animation: ring 1.2s ease-in-out infinite; }
+        
+        .neon-shadow-red { box-shadow: 0 0 40px rgba(239, 68, 68, 0.7), inset 0 0 20px rgba(239, 68, 68, 0.3); }
+        .neon-shadow-blue { box-shadow: 0 0 40px rgba(59, 130, 246, 0.7), inset 0 0 20px rgba(59, 130, 246, 0.3); }
+        .neon-shadow-amber { box-shadow: 0 0 40px rgba(245, 158, 11, 0.7), inset 0 0 20px rgba(245, 158, 11, 0.3); }
+        
+        /* Animated Background Mesh for Dashboard */
+        .bg-mesh {
+            background-color: #f8fafc;
+            background-image: 
+                radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%), 
+                radial-gradient(at 50% 0%, hsla(225,39%,30%,1) 0, transparent 50%), 
+                radial-gradient(at 100% 0%, hsla(339,49%,30%,1) 0, transparent 50%);
+        }
+    </style>
+</head>
+<body class="antialiased overflow-hidden">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useCallback, useRef, useMemo } = React;
+
+        // --- ICONS ---
+        const Icon = ({ name, className, title }) => {
+            const spanRef = useRef(null);
+            useEffect(() => {
+                if (spanRef.current) {
+                    spanRef.current.innerHTML = `<i data-lucide="${name}" class="${className || ''}"></i>`;
+                    window.lucide.createIcons({ root: spanRef.current });
+                }
+            }, [name, className]);
+            return <span ref={spanRef} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }} title={title}></span>;
+        };
+
+        // --- CONFIG & CONSTANTS ---
+        const CALL_TYPES = ['Bed', 'Code Blue', 'Toilet Emergency', 'Emergency Call', 'Staff Assist', 'Infusion Alarm', 'Presence'];
+
+        const COLOR_PALETTES = {
+            'emerald': { hex: '#10b981', bg: 'bg-emerald-500', text: 'text-emerald-950', border: 'border-emerald-400', shadow: 'shadow-emerald-500/50', gradient: 'from-emerald-400 to-emerald-600' },
+            'red': { hex: '#dc2626', bg: 'bg-red-600', text: 'text-white', border: 'border-red-500', shadow: 'neon-shadow-red', gradient: 'from-red-500 to-red-700' },
+            'blue': { hex: '#2563eb', bg: 'bg-blue-600', text: 'text-white', border: 'border-blue-400', shadow: 'neon-shadow-blue', gradient: 'from-blue-500 to-blue-700' },
+            'orange': { hex: '#f97316', bg: 'bg-orange-500', text: 'text-white', border: 'border-orange-400', shadow: 'shadow-orange-500/50', gradient: 'from-orange-400 to-orange-600' },
+            'purple': { hex: '#9333ea', bg: 'bg-purple-600', text: 'text-white', border: 'border-purple-400', shadow: 'shadow-purple-500/50', gradient: 'from-purple-500 to-purple-700' },
+            'cyan': { hex: '#06b6d4', bg: 'bg-cyan-500', text: 'text-cyan-950', border: 'border-cyan-400', shadow: 'shadow-cyan-500/50', gradient: 'from-cyan-400 to-cyan-600' },
+            'amber': { hex: '#f59e0b', bg: 'bg-amber-400', text: 'text-amber-950', border: 'border-amber-300', shadow: 'neon-shadow-amber', gradient: 'from-amber-300 to-amber-500' },
+            'rose': { hex: '#f43f5e', bg: 'bg-rose-500', text: 'text-white', border: 'border-rose-400', shadow: 'shadow-rose-500/50', gradient: 'from-rose-400 to-rose-600' },
+            'teal': { hex: '#14b8a6', bg: 'bg-teal-500', text: 'text-teal-950', border: 'border-teal-400', shadow: 'shadow-teal-500/50', gradient: 'from-teal-400 to-teal-600' },
+            'slate': { hex: '#475569', bg: 'bg-slate-600', text: 'text-white', border: 'border-slate-400', shadow: 'shadow-slate-500/50', gradient: 'from-slate-500 to-slate-700' },
+            'pink': { hex: '#ec4899', bg: 'bg-pink-500', text: 'text-white', border: 'border-pink-400', shadow: 'shadow-pink-500/50', gradient: 'from-pink-400 to-pink-600' },
+        };
+
+        const DEFAULT_CALL_COLORS = {
+            'Bed': 'emerald',
+            'Code Blue': 'blue',
+            'Toilet Emergency': 'orange',
+            'Emergency Call': 'red',
+            'Staff Assist': 'purple',
+            'Infusion Alarm': 'cyan',
+            'Presence': 'amber'
+        };
+
+        const getCallTypeConfig = (type, userColors) => {
+            const colorKey = userColors?.[type] || DEFAULT_CALL_COLORS[type] || 'slate';
+            const palette = COLOR_PALETTES[colorKey] || COLOR_PALETTES['slate'];
+            
+            let icon = 'bell';
+            switch (type) {
+                case 'Bed': icon = 'bed'; break;
+                case 'Code Blue': icon = 'heart-pulse'; break;
+                case 'Staff Assist': icon = 'users'; break;
+                case 'Toilet Emergency': icon = 'alert-triangle'; break;
+                case 'Emergency Call': icon = 'siren'; break;
+                case 'Infusion Alarm': icon = 'droplet'; break;
+                case 'Presence': icon = 'user-check'; break;
+            }
+
+            return { icon, ...palette };
+        };
+
+        const initialRooms = [
+            { id: '101', channel: 1, modbusId: 1, name: 'Kamar 101', callType: 'Bed', status: 'idle', lastCall: null, customAudio: null },
+            { id: '102', channel: 2, modbusId: 2, name: 'Kamar 102', callType: 'Toilet Emergency', status: 'idle', lastCall: null, customAudio: null },
+            { id: '201', channel: 3, modbusId: 3, name: 'VIP 201', callType: 'Code Blue', status: 'idle', lastCall: null, customAudio: null },
+            { id: 'ICU-1', channel: 4, modbusId: 4, name: 'Bed ICU 1', callType: 'Emergency Call', status: 'idle', lastCall: null, customAudio: null },
+        ];
+
+        // --- HELPER FOR HEX TO RGBA ---
+        const hexToRgba = (hex, alpha) => {
+            if (!hex || !hex.startsWith('#')) return `rgba(15, 23, 42, ${alpha})`;
+            let r = 0, g = 0, b = 0;
+            if (hex.length === 4) {
+                r = parseInt(hex[1] + hex[1], 16);
+                g = parseInt(hex[2] + hex[2], 16);
+                b = parseInt(hex[3] + hex[3], 16);
+            } else if (hex.length === 7) {
+                r = parseInt(hex.slice(1, 3), 16);
+                g = parseInt(hex.slice(3, 5), 16);
+                b = parseInt(hex.slice(5, 7), 16);
+            }
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        };
+
+        // --- HOOK: PERSISTENT STORAGE (IndexedDB) ---
+        function usePersistentState(key, initialValue) {
+            const [state, setState] = useState(initialValue);
+            const [isLoaded, setIsLoaded] = useState(false);
+
+            useEffect(() => {
+                window.localforage.getItem(key).then(value => {
+                    if (value !== null) setState(value);
+                    else {
+                        const oldVal = window.localStorage.getItem(key);
+                        if (oldVal) {
+                            try { const parsed = JSON.parse(oldVal); setState(parsed); window.localforage.setItem(key, parsed); } catch(e) {}
+                        }
+                    }
+                    setIsLoaded(true);
+                }).catch(err => { console.error(err); setIsLoaded(true); });
+            }, [key]);
+
+            const setPersistentValue = useCallback((newValue) => {
+                setState(prevState => {
+                    const evaluatedValue = typeof newValue === 'function' ? newValue(prevState) : newValue;
+                    window.localforage.setItem(key, evaluatedValue);
+                    return evaluatedValue;
+                });
+            }, [key]);
+
+            return [state, setPersistentValue, isLoaded];
+        }
+
+        // --- COMPONENT: CHART.JS WRAPPER ---
+        const LogChart = ({ logs }) => {
+            const canvasRef = useRef(null);
+            const chartInstance = useRef(null);
+
+            useEffect(() => {
+                if (!canvasRef.current) return;
+                
+                const last7Days = [...Array(7)].map((_, i) => {
+                    const d = new Date(); d.setDate(d.getDate() - (6 - i));
+                    return d.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric' });
+                });
+                
+                const dataCounts = [...Array(7)].map((_, i) => {
+                     const d = new Date(); d.setDate(d.getDate() - (6 - i));
+                     const dateStrRaw = d.toLocaleDateString('id-ID');
+                     return logs.filter(log => log.type !== 'Sistem' && new Date(log.rawStartTime).toLocaleDateString('id-ID') === dateStrRaw).length;
+                });
+
+                if (chartInstance.current) chartInstance.current.destroy();
+                
+                const ctx = canvasRef.current.getContext('2d');
+                
+                // Create gradient for chart
+                const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+                gradient.addColorStop(0, 'rgba(59, 130, 246, 0.5)');
+                gradient.addColorStop(1, 'rgba(59, 130, 246, 0.0)');
+
+                chartInstance.current = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: last7Days,
+                        datasets: [{
+                            label: 'Panggilan Darurat',
+                            data: dataCounts,
+                            borderColor: '#3b82f6', 
+                            backgroundColor: gradient,
+                            borderWidth: 3, 
+                            pointBackgroundColor: '#ffffff', 
+                            pointBorderColor: '#3b82f6',
+                            pointBorderWidth: 2,
+                            pointRadius: 6, 
+                            pointHoverRadius: 8,
+                            fill: true, 
+                            tension: 0.4
+                        }]
+                    },
+                    options: { 
+                        responsive: true, 
+                        maintainAspectRatio: false, 
+                        plugins: { 
+                            legend: { display: false },
+                            tooltip: {
+                                backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                                titleFont: { family: "'Plus Jakarta Sans', sans-serif", size: 13 },
+                                bodyFont: { family: "'Plus Jakarta Sans', sans-serif", size: 14, weight: 'bold' },
+                                padding: 12,
+                                cornerRadius: 8,
+                                displayColors: false
+                            }
+                        }, 
+                        scales: { 
+                            y: { beginAtZero: true, ticks: { stepSize: 1, font: { family: "'Plus Jakarta Sans', sans-serif" } }, grid: { borderDash: [4, 4], color: '#e2e8f0' } },
+                            x: { grid: { display: false }, ticks: { font: { family: "'Plus Jakarta Sans', sans-serif" } } }
+                        } 
+                    }
+                });
+
+                return () => { if (chartInstance.current) chartInstance.current.destroy(); };
+            }, [logs]);
+
+            return <div className="w-full h-[300px]"><canvas ref={canvasRef}></canvas></div>;
+        };
+
+        // --- MAIN APP COMPONENT ---
+        function App() {
+            // States
+            const [rooms, setRooms, roomsLoaded] = usePersistentState('nc_ent_rooms', initialRooms);
+            const [logs, setLogs, logsLoaded] = usePersistentState('nc_ent_logs', []);
+            const [activeTab, setActiveTab] = useState('dashboard');
+            const [currentTime, setCurrentTime] = useState(new Date());
+            
+            // Auto Hide Display Controls State
+            const [displayControlsVisible, setDisplayControlsVisible] = useState(true);
+            const displayControlsTimeoutRef = useRef(null);
+
+            // Proxy & Modbus Settings
+            const [proxyUrl, setProxyUrl] = usePersistentState('nc_ent_proxyUrl', 'http://localhost:3001/api/modbus');
+            const [modbusConfig, setModbusConfig] = usePersistentState('nc_ent_modbusConfig', { ip: '192.168.1.220', port: 502, slaveId: 1, funcCode: 1, delay: 1000 });
+            const [modbusStatus, setModbusStatus] = useState('disconnected'); // 'connected', 'error', 'disconnected'
+            const [isCheckingConnection, setIsCheckingConnection] = useState(false);
+            const [connectionStatus, setConnectionStatus] = useState(null);
+            const [isCheckingModbus, setIsCheckingModbus] = useState(false);
+
+            // System Preferences
+            const [sysPrefs, setSysPrefs] = usePersistentState('nc_ent_sysPrefs', {
+                audioEnabled: false, alarmVolume: 0.5, alarmDuration: 0.5,
+                pushNotifications: false,
+                displayTitle: 'SMART NURSE CALL', displayLogo: null, 
+                displayBg: null, displayBgType: 'image',
+                bgBrightnessDay: 100, bgBrightnessNight: 40,
+                displayZoom: 1.0,
+                showClock: true, showChannel: true, showSimulator: true, marqueeText: 'Selamat Datang di Sistem Nurse Call Terpadu. Standby untuk Menerima Panggilan Darurat Medis.',
+                showStandbyMessage: true,
+                displayTitleColor: '#ffffff',
+                displayClockColor: '#3b82f6',
+                displayPanelBgColor: '#0f172a',
+                callTypeColors: DEFAULT_CALL_COLORS
+            });
+
+            // Form States
+            const [roomForm, setRoomForm] = useState({ id: null, channel: '', modbusId: '', name: '', callType: CALL_TYPES[0], customAudio: null });
+            const [logFilter, setLogFilter] = useState({ type: 'All', date: '' });
+            
+            const [isSimulatorOpen, setIsSimulatorOpen] = useState(false);
+            const [editingRoomId, setEditingRoomId] = useState(null);
+            const [editFormData, setEditFormData] = useState({ name: '', callType: CALL_TYPES[0], modbusId: '', customAudio: null });
+            
+            const audioRef = useRef(null);
+            const prevRoomsRef = useRef(initialRooms);
+
+            // Calculated Stats
+            const activeCalls = rooms.filter(r => r.status === 'calling');
+            const handledCalls = rooms.filter(r => r.status === 'handling');
+            const idleCalls = rooms.filter(r => r.status === 'idle');
+            
+            // Background Day/Night Logic
+            const isNightMode = currentTime.getHours() >= 18 || currentTime.getHours() < 6;
+            const currentDisplayBg = sysPrefs.displayBg;
+            const currentDisplayBgType = sysPrefs.displayBgType;
+            const currentBrightness = isNightMode ? (sysPrefs.bgBrightnessNight ?? 40) : (sysPrefs.bgBrightnessDay ?? 100);
+
+            // Calculate Avg Response Time (from logs)
+            const avgResponseTime = useMemo(() => {
+                const validLogs = logs.filter(l => l.rawEndTime && l.rawStartTime && l.type !== 'Sistem');
+                if(!validLogs.length) return "0s";
+                const totalMilli = validLogs.reduce((acc, l) => acc + (l.rawEndTime - l.rawStartTime), 0);
+                const avgSec = Math.floor((totalMilli / validLogs.length) / 1000);
+                if (avgSec < 60) return `${avgSec}s`;
+                return `${Math.floor(avgSec/60)}m ${avgSec%60}s`;
+            }, [logs]);
+
+            // ============================================================================
+            // EFFECTS & TIMERS
+            // ============================================================================
+            useEffect(() => { const timer = setInterval(() => setCurrentTime(new Date()), 1000); return () => clearInterval(timer); }, []);
+
+            // Handle Display Controls Auto-Hide
+            const handleDisplayInteraction = useCallback(() => {
+                setDisplayControlsVisible(true);
+                if (displayControlsTimeoutRef.current) {
+                    clearTimeout(displayControlsTimeoutRef.current);
+                }
+                displayControlsTimeoutRef.current = setTimeout(() => {
+                    setDisplayControlsVisible(false);
+                }, 3000);
+            }, []);
+
+            useEffect(() => {
+                if (activeTab === 'display') {
+                    handleDisplayInteraction();
+                } else {
+                    if (displayControlsTimeoutRef.current) clearTimeout(displayControlsTimeoutRef.current);
+                }
+                return () => {
+                    if (displayControlsTimeoutRef.current) clearTimeout(displayControlsTimeoutRef.current);
+                };
+            }, [activeTab, handleDisplayInteraction]);
+
+            // Request Browser Notification Permission
+            useEffect(() => {
+                if (sysPrefs.pushNotifications && 'Notification' in window && Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+                    Notification.requestPermission();
+                }
+            }, [sysPrefs.pushNotifications]);
+
+            const triggerPushNotification = (room) => {
+                if (sysPrefs.pushNotifications && 'Notification' in window && Notification.permission === 'granted') {
+                    const config = getCallTypeConfig(room.callType, sysPrefs.callTypeColors);
+                    new Notification(`🚨 Darurat: ${room.name}`, {
+                        body: `Panggilan: ${room.callType}\nSegera berikan respon!`,
+                        icon: 'https://cdn-icons-png.flaticon.com/512/833/833472.png'
+                    });
+                }
+            };
+
+            // Audio Player & Logger Logic
+            useEffect(() => {
+                if (!roomsLoaded) return;
+                
+                rooms.forEach(room => {
+                    const prevRoom = prevRoomsRef.current.find(r => r.id === room.id);
+                    if (prevRoom) {
+                        if (prevRoom.status !== 'calling' && room.status === 'calling') {
+                            startLog(room.name, room.callType);
+                            triggerPushNotification(room);
+                        }
+                        else if (prevRoom.status === 'calling' && room.status === 'handling') updateLogStatus(room.name, 'Ditangani');
+                        else if (prevRoom.status !== 'idle' && room.status === 'idle') updateLogStatus(room.name, 'Selesai');
+                    }
+                });
+                prevRoomsRef.current = rooms;
+
+                let alarmInterval;
+                if (activeCalls.length > 0 && sysPrefs.audioEnabled) {
+                    const customAudioSrc = activeCalls.find(r => r.customAudio)?.customAudio;
+                    if (customAudioSrc) {
+                        if (!audioRef.current || audioRef.current.src !== customAudioSrc) {
+                            if (audioRef.current) audioRef.current.pause();
+                            audioRef.current = new Audio(customAudioSrc); audioRef.current.loop = true;
+                        }
+                        audioRef.current.volume = sysPrefs.alarmVolume;
+                        audioRef.current.play().catch(e => console.error("Audio block:", e));
+                    } else {
+                        if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+                        playBeep(); alarmInterval = setInterval(playBeep, 1200);
+                    }
+                } else {
+                    if (audioRef.current) { audioRef.current.pause(); audioRef.current.currentTime = 0; }
+                }
+                return () => { if (alarmInterval) clearInterval(alarmInterval); };
+            }, [rooms, sysPrefs.audioEnabled, sysPrefs.alarmVolume, roomsLoaded]);
+
+            const playBeep = useCallback(() => {
+                if (!sysPrefs.audioEnabled) return;
+                try {
+                    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                    const osc = ctx.createOscillator(); const gain = ctx.createGain();
+                    osc.connect(gain); gain.connect(ctx.destination);
+                    osc.type = 'triangle'; osc.frequency.setValueAtTime(750, ctx.currentTime);
+                    gain.gain.setValueAtTime(sysPrefs.alarmVolume, ctx.currentTime);
+                    osc.start(); osc.stop(ctx.currentTime + sysPrefs.alarmDuration);
+                } catch (e) {}
+            }, [sysPrefs.audioEnabled, sysPrefs.alarmVolume, sysPrefs.alarmDuration]);
+
+            // ============================================================================
+            // MODBUS INTEGRATION
+            // ============================================================================
+            const fetchESP32Status = useCallback(async () => {
+                if (!modbusConfig.ip || !proxyUrl) return;
+                try {
+                    const response = await fetch(proxyUrl, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ip: modbusConfig.ip, port: Number(modbusConfig.port), slaveId: Number(modbusConfig.slaveId), functionCode: String(modbusConfig.funcCode), address: 0, quantity: 125 })
+                    });
+                    const result = await response.json();
+                    if (result.success) {
+                        if(modbusStatus !== 'connected') setModbusStatus('connected');
+                        setRooms(prev => prev.map(room => {
+                            const coilVal = result.data[Number(room.modbusId) - 1];
+                            const isTriggered = coilVal === true || coilVal === 1;
+                            let newStatus = room.status;
+                            if (isTriggered && room.status === 'idle') newStatus = 'calling';
+                            else if (!isTriggered && room.status !== 'idle') newStatus = 'idle'; // auto reset if coil drops
+                            return { ...room, status: newStatus, lastCall: (newStatus === 'calling' && room.status === 'idle') ? new Date() : room.lastCall };
+                        }));
+                    } else throw new Error(result.error);
+                } catch (err) {
+                    if(modbusStatus !== 'error') setModbusStatus('error');
+                }
+            }, [modbusConfig, proxyUrl, modbusStatus, setRooms]);
+
+            useEffect(() => {
+                const timer = setInterval(fetchESP32Status, modbusConfig.delay);
+                return () => clearInterval(timer);
+            }, [fetchESP32Status, modbusConfig.delay]);
+
+            const writeModbusCoil = async (modbusId, booleanValue) => {
+                try {
+                    await fetch(proxyUrl.replace('/api/modbus', '/api/modbus/write'), {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ip: modbusConfig.ip, port: Number(modbusConfig.port), slaveId: Number(modbusConfig.slaveId), address: Number(modbusId) - 1, value: booleanValue })
+                    });
+                } catch (e) { console.warn("Write Modbus failed", e); }
+            };
+
+            const toggleRoomCall = async (roomId, isForcedOff = false) => {
+                const room = rooms.find(r => r.id === roomId);
+                if (!room) return;
+                
+                if (room.status === 'calling' && !isForcedOff) {
+                    setRooms(prev => prev.map(r => r.id === roomId ? { ...r, status: 'handling' } : r));
+                } else {
+                    await writeModbusCoil(room.modbusId, !isForcedOff && room.status === 'idle');
+                    setRooms(prev => prev.map(r => r.id === roomId ? { ...r, status: isForcedOff || room.status !== 'idle' ? 'idle' : 'calling', lastCall: room.status === 'idle' ? new Date() : r.lastCall } : r));
+                }
+            };
+            
+            const handleCheckConnection = async () => {
+                setIsCheckingConnection(true); setConnectionStatus(null);
+                try {
+                    await fetch(proxyUrl, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ ip: modbusConfig.ip, port: Number(modbusConfig.port), slaveId: 1, functionCode: '1', address: 0, quantity: 1 }) });
+                    setConnectionStatus('success'); addSystemLog('Sistem', `Proxy Node.js Terhubung`);
+                } catch (e) {
+                    setConnectionStatus('error'); addSystemLog('Sistem', `Koneksi Proxy Node.js Gagal`);
+                }
+                setIsCheckingConnection(false);
+            };
+
+            const handleCheckModbus = async () => {
+                setIsCheckingModbus(true); setModbusStatus('disconnected');
+                try {
+                    const res = await fetch(proxyUrl, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ ip: modbusConfig.ip, port: Number(modbusConfig.port), slaveId: Number(modbusConfig.slaveId), functionCode: String(modbusConfig.funcCode), address: 0, quantity: 1 }) });
+                    const data = await res.json();
+                    if(data.success) { setModbusStatus('connected'); addSystemLog('Sistem', `Koneksi Modbus ESP32 Berhasil`); } 
+                    else { throw new Error("Modbus Failed"); }
+                } catch(e) {
+                    setModbusStatus('error'); addSystemLog('Sistem', `Koneksi Modbus ESP32 Gagal`);
+                }
+                setIsCheckingModbus(false);
+            };
+
+            // ============================================================================
+            // LOGGING & HELPERS
+            // ============================================================================
+            const formatResponseTime = (start, end) => {
+                if (!start || !end) return '-';
+                const diffSec = Math.floor((end - start) / 1000);
+                if (diffSec < 0) return '-';
+                const minutes = Math.floor(diffSec / 60);
+                const seconds = diffSec % 60;
+                if (minutes > 0) return `${minutes}m ${seconds}s`;
+                return `${seconds}s`;
+            };
+
+            const startLog = (roomName, type) => {
+                setLogs(prev => [{ id: Date.now(), room: roomName, type, startTime: new Date().toLocaleTimeString('id-ID'), endTime: '-', status: 'Memanggil', rawStartTime: Date.now(), rawEndTime: null }, ...prev].slice(0, 1000));
+            };
+            
+            const updateLogStatus = (roomName, newStatus) => {
+                setLogs(prev => {
+                    let done = false;
+                    return prev.map(log => {
+                        if (!done && log.room === roomName && log.status !== 'Selesai' && log.type !== 'Sistem') {
+                            done = true; return { ...log, status: newStatus, endTime: new Date().toLocaleTimeString('id-ID'), rawEndTime: Date.now() };
+                        }
+                        return log;
+                    });
+                });
+            };
+            
+            const addSystemLog = (roomName, action) => {
+                setLogs(prev => [{ id: Date.now(), room: roomName, type: 'Sistem', startTime: new Date().toLocaleTimeString('id-ID'), endTime: '-', status: action, rawStartTime: Date.now(), rawEndTime: null }, ...prev].slice(0, 1000));
+            };
+
+            const exportLogs = (format) => {
+                if (logs.length === 0) {
+                    alert("Tidak ada data log untuk diexport.");
+                    return;
+                }
+                const XLSX = window.XLSX;
+                const formattedLogs = logs.map(log => ({
+                    'Waktu Mulai': log.startTime,
+                    'Waktu Selesai': log.endTime,
+                    'Waktu Respon': formatResponseTime(log.rawStartTime, log.rawEndTime),
+                    'Kamar': log.room,
+                    'Jenis Panggilan': log.type,
+                    'Status': log.status
+                }));
+                const ws = XLSX.utils.json_to_sheet(formattedLogs);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, "Log Aktivitas");
+                const dateStr = new Date().toISOString().slice(0,10);
+                XLSX.writeFile(wb, `Riwayat_Nurse_Call_${dateStr}.${format}`);
+            };
+
+            const handleFileRead = (e, setter, isVideo = false, typeSetter = null) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    setter(reader.result);
+                    if (isVideo && typeSetter) {
+                        typeSetter(file.type.startsWith('video/') ? 'video' : 'image');
+                    }
+                };
+                reader.readAsDataURL(file);
+            };
+
+            const handlePerChannelAudio = (e, callback) => {
+                const file = e.target.files[0];
+                if (!file) { callback(null); return; }
+                const reader = new FileReader();
+                reader.onloadend = () => callback(reader.result);
+                reader.readAsDataURL(file);
+            };
+
+            const handleFileUpload = async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const XLSX = window.XLSX;
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    const bstr = evt.target.result;
+                    const wb = XLSX.read(bstr, { type: 'binary' });
+                    const wsname = wb.SheetNames[0];
+                    const data = XLSX.utils.sheet_to_json(wb.Sheets[wsname]);
+                    
+                    const importedRooms = data.map((row, index) => ({
+                        id: `room-${Date.now()}-${index}`,
+                        channel: parseInt(row.Channel) || (index + 1),
+                        modbusId: row['Modbus Coils'] !== undefined && row['Modbus Coils'] !== '' ? parseInt(row['Modbus Coils'], 10) : (parseInt(row.Channel) || (index + 1)),
+                        name: row['Nama Kamar'] || `Kamar ${row.Channel}`,
+                        callType: CALL_TYPES.includes(row['Jenis Panggilan']) ? row['Jenis Panggilan'] : 'Bed',
+                        status: 'idle',
+                        lastCall: null,
+                        customAudio: null
+                    }));
+
+                    if (importedRooms.length > 0) {
+                        setRooms(importedRooms);
+                        addSystemLog('Sistem', `Import ${importedRooms.length} Kamar Selesai`);
+                        alert(`Berhasil mengimpor ${importedRooms.length} kamar dari Excel.`);
+                    }
+                };
+                reader.readAsBinaryString(file);
+                e.target.value = null;
+            };
+
+            const downloadTemplate = async () => {
+                const XLSX = window.XLSX;
+                const templateData = [
+                    { 'Channel': 1, 'Modbus Coils': 1, 'Nama Kamar': 'Kamar 101', 'Jenis Panggilan': 'Bed' },
+                    { 'Channel': 2, 'Modbus Coils': 2, 'Nama Kamar': 'Kamar 102', 'Jenis Panggilan': 'Toilet Emergency' },
+                    { 'Channel': 3, 'Modbus Coils': 3, 'Nama Kamar': 'VIP 201', 'Jenis Panggilan': 'Code Blue' }
+                ];
+                const ws = XLSX.utils.json_to_sheet(templateData);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, "Template");
+                XLSX.writeFile(wb, "template_kamar_nurse_call.xlsx");
+            };
+
+            const getEmbedUrl = (url) => {
+                if (!url) return url;
+                const ytMatch = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i);
+                if (ytMatch && !url.includes('embed/')) {
+                    return `https://www.youtube.com/embed/${ytMatch[1]}?autoplay=1&mute=1&controls=0&showinfo=0&loop=1&playlist=${ytMatch[1]}`;
+                }
+                return url;
+            };
+
+            // ============================================================================
+            // UI COMPONENTS (INTERNAL)
+            // ============================================================================
+            const SidebarItem = ({ id, icon, label }) => (
+                <button onClick={() => setActiveTab(id)} className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all font-semibold group ${activeTab === id ? 'bg-gradient-to-r from-brand-600 to-brand-500 text-white shadow-lg shadow-brand-500/40 relative' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'}`}>
+                    {activeTab === id && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-8 bg-white rounded-r-full shadow-[0_0_10px_white]"></div>}
+                    <Icon name={icon} className={`w-5 h-5 transition-transform ${activeTab === id ? '' : 'group-hover:scale-110'}`} /> {label}
+                </button>
+            );
+
+            // ============================================================================
+            // RENDER: DISPLAY MODE (FULLSCREEN DASHBOARD)
+            // ============================================================================
+            if (activeTab === 'display') {
+                return (
+                    <div 
+                        className="fixed inset-0 flex flex-col z-[100] text-white overflow-hidden group font-sans" 
+                        style={{ backgroundColor: sysPrefs.displayPanelBgColor || '#0f172a' }}
+                        onMouseMove={handleDisplayInteraction}
+                        onClick={handleDisplayInteraction}
+                    >
+                        
+                        {/* Background Layer (Image) */}
+                        {currentDisplayBg && currentDisplayBgType === 'image' && (
+                            <div className="absolute inset-0 w-full h-full z-0" style={{ 
+                                backgroundImage: `url(${currentDisplayBg})`, 
+                                backgroundSize: 'cover', 
+                                backgroundPosition: 'center',
+                                filter: `brightness(${currentBrightness}%)`,
+                                transition: 'filter 1.5s ease-in-out'
+                            }}></div>
+                        )}
+
+                        {/* Background Layer (Video) */}
+                        {currentDisplayBg && currentDisplayBgType === 'video' && (
+                            <video autoPlay loop muted playsInline className="absolute inset-0 w-full h-full object-cover z-0" src={currentDisplayBg} style={{
+                                filter: `brightness(${currentBrightness}%)`,
+                                transition: 'filter 1.5s ease-in-out'
+                            }} />
+                        )}
+
+                        {/* Background Layer (Iframe/Embed/YouTube) */}
+                        {currentDisplayBg && currentDisplayBgType === 'iframe' && (
+                            <iframe 
+                                className="absolute inset-0 w-full h-full border-0 z-0 pointer-events-none" 
+                                src={getEmbedUrl(currentDisplayBg)} 
+                                allow="autoplay; encrypted-media; fullscreen" 
+                                style={{
+                                    filter: `brightness(${currentBrightness}%)`,
+                                    transition: 'filter 1.5s ease-in-out'
+                                }} 
+                            />
+                        )}
+
+                        {/* Display Header (Floating HUD Style) */}
+                        <div 
+                            className="relative z-10 mx-8 mt-8 px-8 py-5 flex justify-between items-center rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.5)] border border-white/10 backdrop-blur-xl transition-colors"
+                            style={{ backgroundColor: hexToRgba(sysPrefs.displayPanelBgColor, 0.65) }}
+                        >
+                            <div className="flex items-center gap-5">
+                                {sysPrefs.displayLogo ? <img src={sysPrefs.displayLogo} className="h-12 md:h-16 rounded bg-white/10 p-1 shadow-inner" alt="Logo"/> : <div className="p-3 bg-gradient-to-br from-brand-400 to-brand-600 rounded-2xl shadow-lg shadow-brand-500/30"><Icon name="activity" className="w-8 h-8 text-white" /></div>}
+                                <div>
+                                    <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight drop-shadow-md" style={{ color: sysPrefs.displayTitleColor || '#ffffff' }}>{sysPrefs.displayTitle}</h1>
+                                    <p className="text-brand-400 font-bold tracking-widest uppercase text-xs mt-1 opacity-80">Smart Hospital Command Center</p>
+                                </div>
+                            </div>
+                            {sysPrefs.showClock && (
+                                <div className="text-4xl md:text-6xl font-mono font-bold tracking-tighter drop-shadow-md" style={{ color: sysPrefs.displayClockColor || '#3b82f6', textShadow: `0 0 20px ${sysPrefs.displayClockColor || '#3b82f6'}80` }}>
+                                    {currentTime.toLocaleTimeString('id-ID')}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Control Overlays (Auto Hidden after 3 seconds) */}
+                        <div className={`absolute top-10 right-10 z-50 transition-all duration-700 ease-out ${displayControlsVisible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4 pointer-events-none'}`}>
+                            <button 
+                                onClick={() => setActiveTab('dashboard')} 
+                                className="hover:bg-red-600/80 hover:border-red-500 text-white px-6 py-3 rounded-full font-bold flex items-center gap-2 shadow-[0_0_30px_rgba(0,0,0,0.5)] hover:shadow-red-500/40 transition-all border border-white/20 backdrop-blur-xl group"
+                                style={{ backgroundColor: hexToRgba(sysPrefs.displayPanelBgColor, 0.65) }}
+                            >
+                                <Icon name="power" className="w-5 h-5 text-red-400 group-hover:text-white transition-colors"/> Exit
+                            </button>
+                        </div>
+                        
+                        <div 
+                            className={`absolute bottom-24 right-10 z-50 rounded-full px-5 py-3 flex items-center gap-4 border border-white/10 shadow-[0_10px_40px_rgba(0,0,0,0.5)] backdrop-blur-xl transition-all duration-700 ease-out ${displayControlsVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}
+                            style={{ backgroundColor: hexToRgba(sysPrefs.displayPanelBgColor, 0.65) }}
+                        >
+                            <Icon name="zoom-out" className="w-5 h-5 text-slate-300" />
+                            <input 
+                                type="range" min="0.5" max="2" step="0.1" value={sysPrefs.displayZoom} 
+                                onChange={e => { setSysPrefs({...sysPrefs, displayZoom: parseFloat(e.target.value)}); handleDisplayInteraction(); }} 
+                                className="w-32 accent-brand-500 cursor-pointer" 
+                            />
+                            <Icon name="zoom-in" className="w-5 h-5 text-slate-300" />
+                        </div>
+
+                        {/* Display Body */}
+                        <div className="relative z-10 flex-1 p-10 overflow-y-auto custom-scrollbar flex items-center justify-center">
+                            {activeCalls.length === 0 && handledCalls.length === 0 ? (
+                                sysPrefs.showStandbyMessage && (
+                                    <div className="text-center flex flex-col items-center drop-shadow-2xl">
+                                        <div className="relative">
+                                            <div className="absolute inset-0 bg-emerald-500 rounded-full blur-[80px] opacity-30 animate-pulse-fast"></div>
+                                            <Icon name="shield-check" className="w-48 h-48 text-emerald-400 mb-8 drop-shadow-[0_0_30px_rgba(16,185,129,0.8)] animate-float relative z-10" />
+                                        </div>
+                                        <h2 className="text-6xl md:text-7xl font-black uppercase tracking-[0.2em] text-white drop-shadow-lg">Kondisi Aman</h2>
+                                        <p 
+                                            className="text-2xl mt-6 text-emerald-200 font-bold tracking-[0.3em] uppercase px-8 py-3 rounded-full border border-emerald-500/30 shadow-[0_0_20px_rgba(16,185,129,0.2)] backdrop-blur-xl"
+                                            style={{ backgroundColor: hexToRgba(sysPrefs.displayPanelBgColor, 0.65) }}
+                                        >
+                                            Sistem Standby & Siap
+                                        </p>
+                                    </div>
+                                )
+                            ) : (
+                                <div className="w-full h-full align-top" style={{ zoom: sysPrefs.displayZoom }}>
+                                    <div className="grid gap-8 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 content-start">
+                                        {[...activeCalls, ...handledCalls].map(room => {
+                                            const config = getCallTypeConfig(room.callType, sysPrefs.callTypeColors);
+                                            const isHandling = room.status === 'handling';
+                                            return (
+                                                <div key={room.id} className={`relative overflow-hidden rounded-[2rem] p-8 flex flex-col items-center justify-center text-center border-2 transition-all duration-300 ${isHandling ? 'bg-gradient-to-br from-amber-400 to-amber-600 border-amber-300 text-amber-950 neon-shadow-amber scale-100' : `bg-gradient-to-br ${config.gradient} ${config.text} ${config.border} ${config.shadow} animate-pulse scale-[1.02] z-20`}`}>
+                                                    {/* Glossy Overlay for 3D depth */}
+                                                    <div className="absolute top-0 inset-x-0 h-1/2 bg-gradient-to-b from-white/30 to-transparent opacity-60"></div>
+                                                    
+                                                    <div className="relative z-10 w-full flex flex-col items-center">
+                                                        <div className="flex justify-between items-center w-full mb-6">
+                                                            {sysPrefs.showChannel && <span className="bg-black/30 px-4 py-1.5 rounded-full text-xs font-black font-mono tracking-widest uppercase shadow-inner text-white/90">CH {room.channel}</span>}
+                                                            <span className="bg-white/20 backdrop-blur-md px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider shadow-inner text-white/90 ml-auto border border-white/20">ALERT</span>
+                                                        </div>
+                                                        <h3 className="font-black text-5xl md:text-6xl mb-6 drop-shadow-[0_2px_10px_rgba(0,0,0,0.3)] leading-tight">{room.name}</h3>
+                                                        
+                                                        <div className={`w-full ${isHandling ? 'bg-white/30' : 'bg-black/20'} px-6 py-4 rounded-2xl text-xl font-black uppercase tracking-widest flex flex-col items-center justify-center gap-3 backdrop-blur-xl border border-white/20 shadow-inner`}>
+                                                            <div className={`p-3 rounded-full ${isHandling ? 'bg-amber-100/50' : 'bg-white/20'} shadow-lg`}>
+                                                                {isHandling ? <Icon name="user" className="w-8 h-8" /> : <Icon name={config.icon} className="w-8 h-8 animate-ring drop-shadow-md" />}
+                                                            </div>
+                                                            <span className="drop-shadow-md">{isHandling ? 'Selesai & Ditangani' : room.callType}</span>
+                                                        </div>
+                                                        <div className="mt-6 text-sm font-mono font-bold opacity-90 bg-black/30 px-4 py-2 rounded-full border border-black/10 shadow-inner w-full">Waktu Trigger: {room.lastCall ? new Date(room.lastCall).toLocaleTimeString('id-ID') : '-'}</div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Marquee Footer */}
+                        {sysPrefs.marqueeText && (
+                            <div 
+                                className="relative z-10 backdrop-blur-xl text-white py-3 border-t border-white/10 overflow-hidden whitespace-nowrap flex items-center shadow-[0_-10px_30px_rgba(0,0,0,0.3)]"
+                                style={{ backgroundColor: hexToRgba(sysPrefs.displayPanelBgColor, 0.9) }}
+                            >
+                                <div 
+                                    className="absolute left-0 z-20 px-6 py-3 h-full flex items-center border-r border-white/10 font-bold uppercase tracking-widest text-sm shadow-[10px_0_20px_rgba(0,0,0,0.5)]"
+                                    style={{ backgroundColor: sysPrefs.displayPanelBgColor || '#020617' }}
+                                >
+                                    <Icon name="radio" className="w-5 h-5 mr-3 text-brand-500 animate-pulse" /> LIVE INFORMATION
+                                </div>
+                                <div className="pl-[200px] inline-block animate-marquee font-medium tracking-widest text-lg opacity-90">
+                                    {sysPrefs.marqueeText} <span className="mx-10 text-brand-500 opacity-50">❖</span> {sysPrefs.marqueeText} <span className="mx-10 text-brand-500 opacity-50">❖</span> {sysPrefs.marqueeText}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                );
+            }
+
+            // ============================================================================
+            // RENDER: ADMIN DASHBOARD
+            // ============================================================================
+            return (
+                <div className="min-h-screen flex bg-mesh text-slate-800 font-sans">
+                    
+                    {/* SIDEBAR */}
+                    <aside className="w-72 bg-dark-950 text-slate-300 flex flex-col shadow-[20px_0_50px_rgba(0,0,0,0.1)] z-20 relative border-r border-slate-800/50">
+                        {/* Sidebar Header */}
+                        <div className="p-6 flex items-center gap-4 bg-dark-950 border-b border-slate-800/50 relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-brand-600/20 blur-[40px] rounded-full"></div>
+                            <div className="bg-gradient-to-br from-brand-400 to-brand-600 p-2.5 rounded-2xl shadow-lg shadow-brand-500/40 relative z-10">
+                                <Icon name="activity" className="w-8 h-8 text-white" />
+                            </div>
+                            <div className="relative z-10">
+                                <h1 className="text-2xl font-black text-white tracking-tight leading-none">SmartCall</h1>
+                                <p className="text-[10px] text-brand-400 font-black uppercase tracking-[0.2em] mt-1.5 flex items-center gap-1">Enterprise <Icon name="sparkles" className="w-3 h-3"/></p>
+                            </div>
+                        </div>
+                        
+                        {/* Sidebar Menu */}
+                        <div className="flex-1 overflow-y-auto py-8 px-5 space-y-2 custom-scrollbar">
+                            <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4 px-2">Menu Navigasi</div>
+                            <SidebarItem id="dashboard" icon="layout-dashboard" label="Dashboard Utama" />
+                            <SidebarItem id="rooms" icon="bed-double" label="Manajemen Kamar" />
+                            <SidebarItem id="logs" icon="bar-chart-3" label="Statistik & Riwayat" />
+                            
+                            <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4 mt-10 px-2">Sistem Lanjut</div>
+                            <SidebarItem id="settings" icon="settings" label="Pengaturan" />
+                            <button onClick={() => setActiveTab('display')} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl transition-all font-bold text-emerald-400 hover:bg-emerald-950/50 hover:text-emerald-300 mt-4 border border-emerald-900/50 bg-emerald-950/20 shadow-inner group">
+                                <div className="p-1.5 bg-emerald-500/20 rounded-lg group-hover:bg-emerald-500/40 transition-colors"><Icon name="monitor-play" className="w-5 h-5" /></div>
+                                Buka Mode Display
+                            </button>
+                        </div>
+                        
+                        {/* Status Footer */}
+                        <div className="p-5 bg-dark-900 border-t border-slate-800/50">
+                            <div className="flex items-center justify-between text-xs font-mono bg-dark-950 p-3.5 rounded-xl border border-slate-800 shadow-inner">
+                                <span className="text-slate-400 font-bold uppercase tracking-wider">Modbus Link</span>
+                                <div className="flex items-center gap-2 font-black">
+                                    {modbusStatus === 'connected' ? <><span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_10px_#10b981] animate-pulse"></span> <span className="text-emerald-500">ONLINE</span></> : 
+                                     modbusStatus === 'error' ? <><span className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_10px_#ef4444] animate-pulse"></span> <span className="text-red-500">ERROR</span></> : 
+                                     <><span className="w-2.5 h-2.5 rounded-full bg-slate-600"></span> <span className="text-slate-500">OFFLINE</span></>}
+                                </div>
+                            </div>
+                        </div>
+                    </aside>
+
+                    {/* MAIN CONTENT AREA */}
+                    <main className="flex-1 flex flex-col h-screen overflow-hidden relative">
+                        
+                        {/* TOP HEADER */}
+                        <header className="glass-panel border-b border-slate-200/50 h-24 flex items-center justify-between px-10 z-10 sticky top-0 shadow-sm">
+                            <div>
+                                <h2 className="text-3xl font-black text-slate-800 tracking-tight drop-shadow-sm">
+                                    {activeTab === 'dashboard' ? 'Dashboard Operasional' : activeTab === 'rooms' ? 'Manajemen Kamar' : activeTab === 'logs' ? 'Statistik & Riwayat' : 'Pengaturan Sistem'}
+                                </h2>
+                                <p className="text-sm font-semibold text-slate-500 mt-1">Sistem Pemantauan Panggilan Darurat Real-Time</p>
+                            </div>
+                            
+                            <div className="flex items-center gap-6">
+                                <button onClick={() => setSysPrefs({...sysPrefs, audioEnabled: !sysPrefs.audioEnabled})} className={`flex items-center gap-2 px-5 py-3 rounded-2xl font-bold text-sm transition-all shadow-md border ${sysPrefs.audioEnabled ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 hover:shadow-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100 hover:shadow-rose-200'}`}>
+                                    <Icon name={sysPrefs.audioEnabled ? 'volume-2' : 'volume-x'} className="w-5 h-5" /> 
+                                    {sysPrefs.audioEnabled ? 'Sistem Audio: AKTIF' : 'Sistem Audio: MUTE'}
+                                </button>
+                                <div className="h-10 w-px bg-slate-200"></div>
+                                <div className="flex items-center gap-3 bg-white px-6 py-3 rounded-2xl border border-slate-200 shadow-sm">
+                                    <div className="p-1.5 bg-brand-50 rounded-lg"><Icon name="clock" className="w-5 h-5 text-brand-600" /></div>
+                                    <span className="text-xl font-mono font-black text-slate-700 tracking-wider">{currentTime.toLocaleTimeString('id-ID')}</span>
+                                </div>
+                            </div>
+                        </header>
+
+                        {/* SCROLLABLE CONTENT */}
+                        <div className="flex-1 overflow-y-auto p-10 custom-scrollbar relative">
+                            
+                            {/* Decorative Blobs for Dashboard Background */}
+                            <div className="absolute top-0 left-0 w-96 h-96 bg-brand-200 rounded-full mix-blend-multiply filter blur-[100px] opacity-40 animate-blob pointer-events-none"></div>
+                            <div className="absolute top-0 right-40 w-96 h-96 bg-purple-200 rounded-full mix-blend-multiply filter blur-[100px] opacity-40 animate-blob animation-delay-2000 pointer-events-none"></div>
+                            <div className="absolute -bottom-20 left-40 w-96 h-96 bg-pink-200 rounded-full mix-blend-multiply filter blur-[100px] opacity-40 animate-blob animation-delay-4000 pointer-events-none"></div>
+
+                            {/* TAB: DASHBOARD */}
+                            {activeTab === 'dashboard' && (
+                                <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500 relative z-10">
+                                    
+                                    {/* Stats Row */}
+                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                                        <div className="glass-panel p-8 rounded-[2rem] border-t-4 border-t-red-500 shadow-lg glass-card-hover flex items-center justify-between relative overflow-hidden group">
+                                            <div className="absolute -right-8 -top-8 bg-gradient-to-br from-red-100 to-red-50 w-32 h-32 rounded-full opacity-50 group-hover:scale-150 transition-transform duration-700 ease-out"></div>
+                                            <div className="relative z-10"><p className="text-slate-500 font-black uppercase tracking-widest text-xs mb-2">Darurat Aktif</p><p className="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-br from-red-500 to-red-700 drop-shadow-sm">{activeCalls.length}</p></div>
+                                            <Icon name="siren" className={`w-14 h-14 relative z-10 drop-shadow-md ${activeCalls.length > 0 ? 'text-red-500 animate-pulse-fast' : 'text-slate-300'}`} />
+                                        </div>
+                                        <div className="glass-panel p-8 rounded-[2rem] border-t-4 border-t-amber-400 shadow-lg glass-card-hover flex items-center justify-between relative overflow-hidden group">
+                                            <div className="absolute -right-8 -top-8 bg-gradient-to-br from-amber-100 to-amber-50 w-32 h-32 rounded-full opacity-50 group-hover:scale-150 transition-transform duration-700 ease-out"></div>
+                                            <div className="relative z-10"><p className="text-slate-500 font-black uppercase tracking-widest text-xs mb-2">Ditangani</p><p className="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-br from-amber-400 to-amber-600 drop-shadow-sm">{handledCalls.length}</p></div>
+                                            <Icon name="user-check" className="w-14 h-14 relative z-10 text-amber-400 drop-shadow-md" />
+                                        </div>
+                                        <div className="glass-panel p-8 rounded-[2rem] border-t-4 border-t-emerald-500 shadow-lg glass-card-hover flex items-center justify-between relative overflow-hidden group">
+                                            <div className="absolute -right-8 -top-8 bg-gradient-to-br from-emerald-100 to-emerald-50 w-32 h-32 rounded-full opacity-50 group-hover:scale-150 transition-transform duration-700 ease-out"></div>
+                                            <div className="relative z-10"><p className="text-slate-500 font-bold uppercase tracking-widest text-xs mb-2">Standby Aman</p><p className="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-br from-emerald-400 to-emerald-600 drop-shadow-sm">{idleCalls.length}</p></div>
+                                            <Icon name="shield-check" className="w-14 h-14 relative z-10 text-emerald-400 drop-shadow-md" />
+                                        </div>
+                                        <div className="glass-panel p-8 rounded-[2rem] border-t-4 border-t-brand-500 shadow-lg glass-card-hover flex items-center justify-between relative overflow-hidden group">
+                                            <div className="absolute -right-8 -top-8 bg-gradient-to-br from-brand-100 to-brand-50 w-32 h-32 rounded-full opacity-50 group-hover:scale-150 transition-transform duration-700 ease-out"></div>
+                                            <div className="relative z-10"><p className="text-slate-500 font-black uppercase tracking-widest text-xs mb-2">Avg Respon</p><p className="text-4xl font-black text-brand-600 font-mono mt-3 drop-shadow-sm">{avgResponseTime}</p></div>
+                                            <Icon name="timer" className="w-14 h-14 relative z-10 text-brand-400 drop-shadow-md" />
+                                        </div>
+                                    </div>
+
+                                    {/* Active Calls Highlight */}
+                                    {activeCalls.length > 0 && (
+                                        <div className="bg-red-50/90 backdrop-blur-md border border-red-200 rounded-[2rem] p-8 shadow-xl shadow-red-500/10">
+                                            <div className="flex items-center gap-3 mb-6 border-b border-red-200/50 pb-4">
+                                                <div className="p-2 bg-red-500 rounded-xl shadow-lg shadow-red-500/30 animate-pulse"><Icon name="alert-circle" className="text-white w-6 h-6" /></div>
+                                                <h3 className="text-red-800 font-black text-2xl tracking-tight">Panggilan Darurat Aktif</h3>
+                                                <span className="ml-auto bg-red-200 text-red-800 text-xs font-black uppercase px-3 py-1 rounded-full animate-pulse tracking-widest">Tindakan Segera</span>
+                                            </div>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                                                {activeCalls.map(room => {
+                                                    const config = getCallTypeConfig(room.callType, sysPrefs.callTypeColors);
+                                                    return (
+                                                        <div key={room.id} className="bg-white p-6 rounded-3xl border-l-4 shadow-lg glass-card-hover flex flex-col justify-between" style={{ borderLeftColor: config.hex }}>
+                                                            <div className="w-full">
+                                                                <div className="flex items-center gap-2 mb-2">
+                                                                    <span className="text-[10px] font-black bg-slate-100 px-3 py-1 rounded-lg text-slate-500 uppercase tracking-widest border border-slate-200">CH-{room.channel}</span>
+                                                                    <span className="text-[10px] font-black text-slate-400 ml-auto bg-slate-50 px-2 py-1 rounded-md">{new Date(room.lastCall).toLocaleTimeString('id-ID')}</span>
+                                                                </div>
+                                                                <div className="text-3xl font-black text-slate-800 tracking-tight leading-none mb-3">{room.name}</div>
+                                                                <div className="text-sm font-black flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-50 border border-slate-100" style={{ color: config.hex }}>
+                                                                    <Icon name={config.icon} className="w-5 h-5"/> {room.callType}
+                                                                </div>
+                                                            </div>
+                                                            <div className="w-full mt-6">
+                                                                <button onClick={() => toggleRoomCall(room.id)} className="w-full bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-amber-950 font-black py-4 rounded-2xl shadow-lg hover:shadow-amber-500/40 transition-all active:scale-95 flex items-center justify-center gap-2 text-base">
+                                                                    <Icon name="check-circle-2" className="w-5 h-5" /> RESPOND SEKARANG
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    )
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Standby & Handled List (Single Grid) */}
+                                    <div className="glass-panel rounded-[2rem] border shadow-md p-8">
+                                        <div className="flex items-center gap-3 mb-8 border-b border-slate-200/50 pb-4">
+                                            <div className="p-2 bg-brand-100 rounded-xl"><Icon name="layout-grid" className="w-6 h-6 text-brand-600"/></div>
+                                            <h3 className="text-slate-800 font-black text-2xl tracking-tight">Pantauan Seluruh Kamar</h3>
+                                        </div>
+                                        
+                                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-5">
+                                            {rooms.filter(r => r.status !== 'calling').map(room => (
+                                                <div key={room.id} className={`p-5 rounded-3xl border-2 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${room.status === 'handling' ? 'bg-gradient-to-br from-amber-50 to-amber-100 border-amber-300 shadow-lg shadow-amber-500/20' : 'bg-white border-slate-100 hover:border-brand-300'}`}>
+                                                    <div className="flex justify-between items-start mb-3">
+                                                        <div className={`p-2 rounded-xl ${room.status === 'handling' ? 'bg-amber-200/50' : 'bg-slate-50'}`}>
+                                                            <Icon name={getCallTypeConfig(room.callType, sysPrefs.callTypeColors).icon} className={`w-5 h-5 ${room.status === 'handling' ? 'text-amber-600' : 'text-slate-400'}`} />
+                                                        </div>
+                                                        <span className="text-[10px] font-mono font-black text-slate-400 bg-slate-100 px-2 py-1 rounded-lg border border-slate-200 shadow-inner">CH-{room.channel}</span>
+                                                    </div>
+                                                    <div className={`font-black text-lg tracking-tight leading-tight ${room.status === 'handling' ? 'text-amber-900' : 'text-slate-800'}`}>{room.name}</div>
+                                                    {room.status === 'handling' ? 
+                                                        <button onClick={() => toggleRoomCall(room.id, true)} className="mt-4 w-full bg-amber-300 hover:bg-amber-400 text-amber-900 text-xs font-black py-2.5 rounded-xl shadow-sm transition-colors uppercase tracking-widest">Selesai</button>
+                                                    : 
+                                                        <div className="mt-4 bg-emerald-50 border border-emerald-100 py-2 px-3 rounded-xl text-[10px] font-black text-emerald-600 uppercase tracking-widest flex items-center justify-center gap-1.5"><span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_5px_#10b981]"></span> Standby</div>
+                                                    }
+                                                </div>
+                                            ))}
+                                            {rooms.filter(r => r.status !== 'calling').length === 0 && (
+                                                <div className="col-span-full py-10 flex flex-col items-center justify-center opacity-50">
+                                                    <Icon name="bed-double" className="w-16 h-16 text-slate-400 mb-4" />
+                                                    <p className="text-lg text-slate-500 font-bold">Tidak ada kamar standby saat ini.</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* TAB: ROOMS MANAGEMENT */}
+                            {activeTab === 'rooms' && (
+                                <div className="space-y-8 animate-in fade-in duration-500 relative z-10">
+                                    <div className="bg-gradient-to-r from-emerald-50 to-teal-50 p-8 rounded-[2rem] border border-emerald-100 shadow-md flex flex-col md:flex-row justify-between items-center gap-6">
+                                        <div className="flex items-start gap-4">
+                                            <div className="p-3 bg-emerald-500 rounded-2xl shadow-lg shadow-emerald-500/30 text-white"><Icon name="file-spreadsheet" className="w-8 h-8"/></div>
+                                            <div>
+                                                <h3 className="font-black text-2xl text-emerald-950 tracking-tight">Import Massal via Excel</h3>
+                                                <p className="text-sm font-medium text-emerald-800/70 mt-1 leading-relaxed">Perbarui seluruh daftar kamar dalam sekali klik dengan mengunggah template Excel yang telah diisi.</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-3 shrink-0">
+                                            <button onClick={downloadTemplate} className="text-sm bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-50 px-5 py-3 rounded-xl font-bold flex items-center gap-2 transition-all shadow-sm hover:shadow-md">
+                                                <Icon name="download" className="w-5 h-5" /> Template
+                                            </button>
+                                            <label className="text-sm bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-emerald-500/30 transition-transform active:scale-95 cursor-pointer">
+                                                <Icon name="upload" className="w-5 h-5" /> Import Data
+                                                <input type="file" accept=".xlsx, .xls, .csv" onChange={handleFileUpload} className="hidden" />
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <div className="glass-panel p-8 rounded-[2rem] border shadow-md">
+                                        <div className="flex items-center gap-3 mb-6 border-b border-slate-100 pb-4">
+                                            <div className="p-2 bg-brand-100 rounded-xl"><Icon name="plus-square" className="w-6 h-6 text-brand-600"/></div>
+                                            <h3 className="font-black text-2xl text-slate-800 tracking-tight">Tambah Kamar Baru</h3>
+                                        </div>
+                                        <form onSubmit={(e) => { e.preventDefault(); const nextChannel = rooms.length > 0 ? Math.max(...rooms.map(r => r.channel)) + 1 : 1; const mId = roomForm.modbusId !== '' ? parseInt(roomForm.modbusId, 10) : nextChannel; setRooms([...rooms, { id: `room-${Date.now()}`, channel: nextChannel, modbusId: mId, name: roomForm.name, callType: roomForm.callType, status: 'idle', lastCall: null, customAudio: roomForm.customAudio }]); setRoomForm({ id: null, channel: '', name: '', modbusId: '', callType: CALL_TYPES[0], customAudio: null }); }} className="grid grid-cols-1 md:grid-cols-5 gap-5 items-end">
+                                            <div className="col-span-1"><label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Nama Kamar</label><input type="text" value={roomForm.name} onChange={e=>setRoomForm({...roomForm, name: e.target.value})} className="w-full p-4 bg-white border border-slate-200 rounded-2xl focus:ring-2 focus:ring-brand-500 font-bold text-slate-800 shadow-sm" placeholder="Contoh: ICU Bed 1" required /></div>
+                                            <div className="col-span-1"><label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block">Jenis Default</label><select value={roomForm.callType} onChange={e=>setRoomForm({...roomForm, callType: e.target.value})} className="w-full p-4 bg-white border border-slate-200 rounded-2xl font-bold text-slate-800 shadow-sm">{CALL_TYPES.map(t=><option key={t}>{t}</option>)}</select></div>
+                                            <div className="col-span-1"><label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block flex items-center gap-1">Modbus Coil <Icon name="info" className="w-3 h-3 text-slate-400" title="Nomor Pin/Coil pada Relay ESP32"/></label><input type="number" value={roomForm.modbusId} onChange={e=>setRoomForm({...roomForm, modbusId: e.target.value})} placeholder="Otomatis" className="w-full p-4 bg-white border border-slate-200 rounded-2xl font-bold font-mono text-brand-600 shadow-sm" /></div>
+                                            <div className="col-span-1">
+                                                <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 block flex items-center gap-1">Custom Audio <Icon name="music" className="w-3 h-3 text-slate-400" /></label>
+                                                <label className="w-full p-4 border border-dashed border-slate-300 rounded-2xl bg-slate-50 hover:bg-slate-100 flex items-center justify-center cursor-pointer transition-colors text-xs font-bold text-slate-500 shadow-sm">
+                                                    {roomForm.customAudio ? <span className="text-emerald-600 flex items-center gap-1"><Icon name="check" className="w-4 h-4"/> File Terpilih</span> : <span className="flex items-center gap-1"><Icon name="upload-cloud" className="w-4 h-4"/> Pilih .MP3</span>}
+                                                    <input type="file" accept="audio/*" onChange={e => handlePerChannelAudio(e, val => setRoomForm({...roomForm, customAudio: val}))} className="hidden" />
+                                                </label>
+                                            </div>
+                                            <div className="col-span-1"><button type="submit" className="w-full bg-brand-600 hover:bg-brand-700 text-white p-4 rounded-2xl font-black shadow-lg shadow-brand-500/30 flex justify-center items-center gap-2 transition-transform active:scale-95 text-sm tracking-wide"><Icon name="plus" className="w-5 h-5"/> Tambah Kamar</button></div>
+                                        </form>
+                                    </div>
+
+                                    <div className="glass-panel rounded-[2rem] border shadow-md overflow-hidden">
+                                        <div className="p-6 border-b border-slate-100 flex items-center gap-3">
+                                            <div className="p-2 bg-slate-100 rounded-xl"><Icon name="list" className="w-6 h-6 text-slate-600"/></div>
+                                            <h3 className="font-black text-xl text-slate-800 tracking-tight">Daftar Konfigurasi Kamar Aktif</h3>
+                                            <span className="ml-auto bg-brand-50 text-brand-700 font-black text-xs px-3 py-1 rounded-lg border border-brand-100">{rooms.length} Total</span>
+                                        </div>
+                                        <div className="overflow-x-auto custom-scrollbar">
+                                            <table className="w-full text-left border-collapse whitespace-nowrap">
+                                                <thead className="bg-slate-50/80 border-b border-slate-200">
+                                                    <tr>
+                                                        <th className="p-5 font-black text-slate-400 text-[10px] uppercase tracking-[0.2em]">CH</th>
+                                                        <th className="p-5 font-black text-slate-400 text-[10px] uppercase tracking-[0.2em]">Koneksi Modbus</th>
+                                                        <th className="p-5 font-black text-slate-400 text-[10px] uppercase tracking-[0.2em]">Nama Kamar</th>
+                                                        <th className="p-5 font-black text-slate-400 text-[10px] uppercase tracking-[0.2em]">Alert Panggilan</th>
+                                                        <th className="p-5 font-black text-slate-400 text-[10px] uppercase tracking-[0.2em] text-center">Audio Medis</th>
+                                                        <th className="p-5 font-black text-slate-400 text-[10px] uppercase tracking-[0.2em] text-center">Aksi / Edit</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-100/50">
+                                                    {rooms.map(room => (
+                                                        <tr key={room.id} className="hover:bg-brand-50/30 transition-colors group">
+                                                            <td className="p-5 font-mono font-black text-slate-400 text-sm">#{room.channel}</td>
+                                                            {editingRoomId === room.id ? (
+                                                                <>
+                                                                    <td className="p-3"><input type="number" value={editFormData.modbusId} onChange={e=>setEditFormData({...editFormData, modbusId: e.target.value})} className="w-full p-3 border-2 border-brand-200 rounded-xl bg-white text-center font-mono font-bold text-brand-700 focus:ring-0" /></td>
+                                                                    <td className="p-3"><input value={editFormData.name} onChange={e=>setEditFormData({...editFormData, name: e.target.value})} className="w-full p-3 border-2 border-brand-200 rounded-xl bg-white font-bold text-slate-800 focus:ring-0" /></td>
+                                                                    <td className="p-3"><select value={editFormData.callType} onChange={e=>setEditFormData({...editFormData, callType: e.target.value})} className="w-full p-3 border-2 border-brand-200 rounded-xl bg-white font-bold text-slate-700 focus:ring-0">{CALL_TYPES.map(t=><option key={t}>{t}</option>)}</select></td>
+                                                                    <td className="p-3 text-center">
+                                                                        <label className="w-full max-w-[140px] p-2.5 border-2 border-dashed border-brand-300 rounded-xl bg-brand-50 hover:bg-brand-100 flex items-center justify-center gap-1 cursor-pointer transition-colors text-[10px] font-bold text-brand-600 mx-auto">
+                                                                            <Icon name="upload-cloud" className="w-3 h-3" /> Ganti MP3
+                                                                            <input type="file" accept="audio/*" onChange={e => handlePerChannelAudio(e, val => setEditFormData({...editFormData, customAudio: val}))} className="hidden" />
+                                                                        </label>
+                                                                    </td>
+                                                                    <td className="p-3 text-center"><button onClick={() => { setRooms(rooms.map(r => r.id === room.id ? { ...r, ...editFormData, modbusId: editFormData.modbusId !== '' ? parseInt(editFormData.modbusId, 10) : r.modbusId } : r)); setEditingRoomId(null); }} className="text-white bg-brand-600 hover:bg-brand-700 px-4 py-3 rounded-xl font-bold flex items-center gap-2 mx-auto shadow-md transition-transform active:scale-95 text-xs tracking-wider uppercase"><Icon name="check" className="w-4 h-4"/> Simpan</button></td>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <td className="p-5">
+                                                                        <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-lg border border-slate-200">
+                                                                            <Icon name="cpu" className="w-4 h-4 text-slate-400" />
+                                                                            <span className="font-mono font-black text-slate-700">Coil {room.modbusId}</span>
+                                                                        </div>
+                                                                    </td>
+                                                                    <td className="p-5 font-black text-slate-800 text-lg tracking-tight">{room.name}</td>
+                                                                    <td className="p-5">
+                                                                        <span className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-xl text-xs font-bold ${getCallTypeConfig(room.callType, sysPrefs.callTypeColors).bg} ${getCallTypeConfig(room.callType, sysPrefs.callTypeColors).text} shadow-sm`}>
+                                                                            <Icon name={getCallTypeConfig(room.callType, sysPrefs.callTypeColors).icon} className="w-3.5 h-3.5" /> {room.callType}
+                                                                        </span>
+                                                                    </td>
+                                                                    <td className="p-5 text-center">
+                                                                        {room.customAudio ? <span className="inline-flex items-center gap-1.5 text-emerald-700 bg-emerald-100 px-3 py-1.5 rounded-xl text-xs font-black border border-emerald-200"><Icon name="music" className="w-3.5 h-3.5"/> MP3 Custom</span> : <span className="text-slate-300 font-medium text-xs italic">Default System</span>}
+                                                                    </td>
+                                                                    <td className="p-5 text-center flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                        <button onClick={() => { setEditingRoomId(room.id); setEditFormData({ name: room.name, callType: room.callType, modbusId: room.modbusId, customAudio: room.customAudio }); }} className="text-slate-500 hover:text-brand-600 hover:bg-brand-50 bg-white shadow-sm border border-slate-200 p-2.5 rounded-xl transition-all hover:scale-110"><Icon name="edit-2" className="w-4 h-4" /></button>
+                                                                        <button onClick={() => setRooms(rooms.filter(r => r.id !== room.id))} className="text-slate-500 hover:text-red-600 hover:bg-red-50 bg-white shadow-sm border border-slate-200 p-2.5 rounded-xl transition-all hover:scale-110"><Icon name="trash-2" className="w-4 h-4" /></button>
+                                                                    </td>
+                                                                </>
+                                                            )}
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* TAB: LOGS & STATS */}
+                            {activeTab === 'logs' && (
+                                <div className="space-y-8 animate-in fade-in duration-500 relative z-10">
+                                    
+                                    {/* Charts */}
+                                    <div className="glass-panel p-8 rounded-[2rem] border shadow-md">
+                                        <div className="flex justify-between items-center mb-8 border-b border-slate-100 pb-4">
+                                            <h3 className="font-black text-2xl text-slate-800 flex items-center gap-3 tracking-tight"><div className="p-2 bg-brand-100 rounded-xl"><Icon name="trending-up" className="text-brand-600 w-6 h-6"/></div> Analitik Panggilan Mingguan</h3>
+                                            <div className="text-xs font-bold text-slate-400 bg-slate-100 px-4 py-2 rounded-full uppercase tracking-widest">7 Hari Terakhir</div>
+                                        </div>
+                                        <LogChart logs={logs} />
+                                    </div>
+
+                                    {/* Log Table */}
+                                    <div className="glass-panel rounded-[2rem] border shadow-md overflow-hidden flex flex-col h-[700px]">
+                                        <div className="p-6 border-b border-slate-200 bg-slate-50/80 flex flex-col md:flex-row justify-between gap-4 items-center backdrop-blur-md">
+                                            <div className="flex gap-3 w-full md:w-auto">
+                                                <div className="relative flex-1 md:w-56">
+                                                    <Icon name="filter" className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                                    <select value={logFilter.type} onChange={e=>setLogFilter({...logFilter, type: e.target.value})} className="w-full pl-9 pr-4 py-3 border border-slate-200 rounded-2xl bg-white font-bold text-sm text-slate-700 shadow-sm focus:ring-2 focus:ring-brand-500 appearance-none">
+                                                        <option value="All">Semua Tipe Panggilan</option>
+                                                        {CALL_TYPES.map(t=><option key={t} value={t}>{t}</option>)}
+                                                        <option value="Sistem">Log Sistem Eksternal</option>
+                                                    </select>
+                                                </div>
+                                                <input type="date" value={logFilter.date} onChange={e=>setLogFilter({...logFilter, date: e.target.value})} className="py-3 px-4 border border-slate-200 rounded-2xl bg-white font-bold text-sm text-slate-700 shadow-sm focus:ring-2 focus:ring-brand-500" />
+                                                {(logFilter.type !== 'All' || logFilter.date !== '') && <button onClick={()=>setLogFilter({type:'All', date:''})} className="p-3 text-rose-400 hover:text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-2xl transition-colors"><Icon name="x" className="w-5 h-5"/></button>}
+                                            </div>
+                                            <div className="flex gap-3 w-full md:w-auto">
+                                                <button onClick={() => exportLogs('xlsx')} className="flex-1 md:flex-none text-sm bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-2xl font-black flex justify-center items-center gap-2 shadow-lg shadow-emerald-500/30 transition-transform active:scale-95"><Icon name="file-spreadsheet" className="w-4 h-4" /> EXCEL</button>
+                                                <button onClick={() => setLogs([])} className="flex-1 md:flex-none text-sm bg-white border border-rose-200 text-rose-600 hover:bg-rose-50 px-6 py-3 rounded-2xl font-black flex justify-center items-center gap-2 transition-transform active:scale-95"><Icon name="trash-2" className="w-4 h-4" /> CLEAR</button>
+                                            </div>
+                                        </div>
+                                        <div className="flex-1 overflow-y-auto custom-scrollbar bg-white/50">
+                                            <table className="w-full text-left border-collapse whitespace-nowrap min-w-[900px]">
+                                                <thead className="bg-white sticky top-0 z-10 border-b border-slate-200 shadow-sm">
+                                                    <tr>
+                                                        <th className="p-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Date & Time</th>
+                                                        <th className="p-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Identitas Kamar</th>
+                                                        <th className="p-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Tipe Darurat</th>
+                                                        <th className="p-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Waktu Ditangani</th>
+                                                        <th className="p-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Durasi Total</th>
+                                                        <th className="p-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Status</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-100/50">
+                                                    {logs.filter(l => {
+                                                        if (logFilter.type !== 'All' && l.type !== logFilter.type) return false;
+                                                        if (logFilter.date !== '') {
+                                                            const logDate = new Date(l.rawStartTime).toISOString().split('T')[0];
+                                                            if (logDate !== logFilter.date) return false;
+                                                        }
+                                                        return true;
+                                                    }).map(log => (
+                                                        <tr key={log.id} className="hover:bg-slate-50 transition-colors">
+                                                            <td className="p-5">
+                                                                <div className="flex flex-col">
+                                                                    <span className="font-bold text-slate-800 text-sm">{log.startTime}</span>
+                                                                    <span className="text-xs font-mono text-slate-400">{new Date(log.rawStartTime).toLocaleDateString('id-ID', {day: '2-digit', month: 'short', year: 'numeric'})}</span>
+                                                                </div>
+                                                            </td>
+                                                            <td className="p-5 font-black text-slate-700">{log.room}</td>
+                                                            <td className="p-5">
+                                                                <span className={`inline-flex px-3 py-1 rounded-lg text-xs font-bold ${log.type==='Sistem'?'bg-slate-100 text-slate-600': 'bg-brand-50 text-brand-700 border border-brand-100'}`}>{log.type}</span>
+                                                            </td>
+                                                            <td className="p-5 font-mono font-bold text-slate-500">{log.endTime}</td>
+                                                            <td className="p-5 text-center">
+                                                                <span className="bg-slate-100 px-3 py-1.5 rounded-lg font-mono font-black text-slate-700 border border-slate-200 shadow-inner">{formatResponseTime(log.rawStartTime, log.rawEndTime)}</span>
+                                                            </td>
+                                                            <td className="p-5 text-center">
+                                                                <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider border shadow-sm ${log.status==='Memanggil'?'bg-red-50 border-red-200 text-red-700': log.status==='Ditangani'?'bg-amber-50 border-amber-200 text-amber-700': log.status==='Selesai'?'bg-emerald-50 border-emerald-200 text-emerald-700': 'bg-slate-50 border-slate-200 text-slate-600'}`}>
+                                                                    {log.status==='Memanggil' && <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>}
+                                                                    {log.status}
+                                                                </span>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                    {logs.length === 0 && <tr><td colSpan="6" className="p-16 flex flex-col items-center justify-center opacity-40"><Icon name="inbox" className="w-16 h-16 mb-4"/><p className="font-bold text-lg">Data riwayat masih kosong.</p></td></tr>}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* TAB: SETTINGS */}
+                            {activeTab === 'settings' && (
+                                <div className="max-w-5xl mx-auto space-y-10 animate-in fade-in duration-500 pb-20 relative z-10">
+                                    
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                        {/* Modbus Settings */}
+                                        <div className="glass-panel p-8 rounded-[2rem] border shadow-md space-y-6">
+                                            <div className="flex items-center gap-4 mb-8 border-b border-slate-100 pb-4">
+                                                <div className="p-3 bg-brand-500 rounded-2xl shadow-lg shadow-brand-500/30 text-white"><Icon name="network" className="w-6 h-6"/></div>
+                                                <div>
+                                                    <h3 className="font-black text-2xl text-slate-800 tracking-tight">Koneksi Hardware TCP</h3>
+                                                    <p className="text-xs text-slate-500 font-medium">Pengaturan integrasi ESP32 dan Modbus</p>
+                                                </div>
+                                            </div>
+                                            
+                                            <div><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Node.js Proxy URI</label><input type="text" value={proxyUrl} onChange={e=>setProxyUrl(e.target.value)} className="w-full p-4 bg-white border border-slate-200 rounded-2xl font-mono text-sm text-brand-600 focus:ring-2 focus:ring-brand-500 shadow-sm" /></div>
+                                            <div className="grid grid-cols-2 gap-5">
+                                                <div><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">IP Address Master</label><input type="text" value={modbusConfig.ip} onChange={e=>setModbusConfig({...modbusConfig, ip: e.target.value})} className="w-full p-4 bg-white border border-slate-200 rounded-2xl font-mono font-bold text-slate-800 shadow-sm" /></div>
+                                                <div><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">TCP Port</label><input type="number" value={modbusConfig.port} onChange={e=>setModbusConfig({...modbusConfig, port: e.target.value})} className="w-full p-4 bg-white border border-slate-200 rounded-2xl font-mono font-bold text-slate-800 shadow-sm" /></div>
+                                            </div>
+                                            <div className="grid grid-cols-3 gap-5">
+                                                <div><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Device ID</label><input type="number" value={modbusConfig.slaveId} onChange={e=>setModbusConfig({...modbusConfig, slaveId: e.target.value})} className="w-full p-4 bg-white border border-slate-200 rounded-2xl font-bold text-center shadow-sm" /></div>
+                                                <div><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Operation</label><select value={modbusConfig.funcCode} onChange={e=>setModbusConfig({...modbusConfig, funcCode: e.target.value})} className="w-full p-4 bg-white border border-slate-200 rounded-2xl font-bold shadow-sm"><option value={1}>01 COIL</option><option value={2}>02 DI</option></select></div>
+                                                <div><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Interval (ms)</label><input type="number" value={modbusConfig.delay} onChange={e=>setModbusConfig({...modbusConfig, delay: e.target.value})} className="w-full p-4 bg-white border border-slate-200 rounded-2xl font-bold text-center shadow-sm" /></div>
+                                            </div>
+                                            <div className="pt-6 border-t border-slate-100 flex gap-4 mt-2">
+                                                <button onClick={handleCheckConnection} disabled={isCheckingConnection} className="flex-1 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 p-4 rounded-2xl font-black text-sm flex justify-center items-center gap-2 transition-colors shadow-sm"><Icon name="globe" className="w-4 h-4"/> Ping Server</button>
+                                                <button onClick={handleCheckModbus} disabled={isCheckingModbus} className="flex-1 bg-brand-600 hover:bg-brand-700 text-white p-4 rounded-2xl font-black text-sm flex justify-center items-center gap-2 transition-transform active:scale-95 shadow-lg shadow-brand-500/30"><Icon name="plug" className="w-4 h-4"/> Uji Koneksi</button>
+                                            </div>
+                                        </div>
+
+                                        {/* Display Mode Customization */}
+                                        <div className="glass-panel p-8 rounded-[2rem] border shadow-md space-y-6">
+                                            <div className="flex items-center gap-4 mb-8 border-b border-slate-100 pb-4">
+                                                <div className="p-3 bg-purple-500 rounded-2xl shadow-lg shadow-purple-500/30 text-white"><Icon name="monitor" className="w-6 h-6"/></div>
+                                                <div>
+                                                    <h3 className="font-black text-2xl text-slate-800 tracking-tight">Kustomisasi Visual</h3>
+                                                    <p className="text-xs text-slate-500 font-medium">Personalisasi tampilan layar besar</p>
+                                                </div>
+                                            </div>
+                                            
+                                            <div><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Judul Institusi</label><input type="text" value={sysPrefs.displayTitle} onChange={e=>setSysPrefs({...sysPrefs, displayTitle: e.target.value})} className="w-full p-4 bg-white border border-slate-200 rounded-2xl font-bold text-slate-800 shadow-sm" /></div>
+                                            <div><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Teks Pengumuman (Marquee)</label><input type="text" value={sysPrefs.marqueeText} onChange={e=>setSysPrefs({...sysPrefs, marqueeText: e.target.value})} className="w-full p-4 bg-white border border-slate-200 rounded-2xl font-bold text-slate-800 shadow-sm" /></div>
+                                            
+                                            <div>
+                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Logo Instansi</label>
+                                                <div className="flex items-center gap-3">
+                                                    <label className="flex-1 p-3 border border-dashed border-slate-300 rounded-2xl bg-slate-50 hover:bg-slate-100 flex items-center justify-center cursor-pointer transition-colors text-xs font-bold text-slate-600 shadow-sm">
+                                                        <Icon name="image" className="w-4 h-4 mr-2"/> Unggah Logo Baru
+                                                        <input type="file" accept="image/*" onChange={e=>handleFileRead(e, val=>setSysPrefs({...sysPrefs, displayLogo: val}))} className="hidden" />
+                                                    </label>
+                                                    {sysPrefs.displayLogo && (
+                                                        <button onClick={() => setSysPrefs({...sysPrefs, displayLogo: null})} className="p-3 bg-red-50 border border-red-200 text-red-600 rounded-2xl hover:bg-red-100 transition-colors shadow-sm" title="Hapus Logo">
+                                                            <Icon name="trash-2" className="w-5 h-5" />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Media Latar Belakang (Img/Video/Web)</label>
+                                                <div className="flex flex-col gap-3">
+                                                    <div className="flex bg-white rounded-2xl border border-slate-200 shadow-sm p-1">
+                                                        <select value={sysPrefs.displayBgType} onChange={e=>setSysPrefs({...sysPrefs, displayBgType: e.target.value})} className="w-32 text-xs px-4 py-3 bg-transparent font-bold text-slate-600 border-r border-slate-100 outline-none cursor-pointer">
+                                                            <option value="image">GAMBAR</option><option value="video">VIDEO</option><option value="iframe">STREAM/YT</option>
+                                                        </select>
+                                                        <input type="text" placeholder="URL link atau YT embed..." value={sysPrefs.displayBg && !sysPrefs.displayBg.startsWith('data:') ? sysPrefs.displayBg : ''} onChange={e=>setSysPrefs({...sysPrefs, displayBg: e.target.value})} className="w-full text-xs px-4 py-3 bg-transparent outline-none" />
+                                                    </div>
+                                                    <div className="flex items-center gap-3">
+                                                        <label className="flex-1 p-3 border border-dashed border-slate-300 rounded-2xl bg-slate-50 hover:bg-slate-100 flex items-center justify-center cursor-pointer transition-colors text-xs font-bold text-slate-600 shadow-sm">
+                                                            <Icon name="upload-cloud" className="w-4 h-4 mr-2"/> Upload File Media Lokal
+                                                            <input type="file" accept="image/*,video/*" onChange={e=>handleFileRead(e, val=>setSysPrefs({...sysPrefs, displayBg: val}), true, type=>setSysPrefs(p=>({...p, displayBgType: type})))} className="hidden" />
+                                                        </label>
+                                                        {sysPrefs.displayBg && (
+                                                            <button onClick={() => setSysPrefs({...sysPrefs, displayBg: null, displayBgType: 'image'})} className="p-3 bg-red-50 border border-red-200 text-red-600 rounded-2xl hover:bg-red-100 transition-colors shadow-sm" title="Hapus Background">
+                                                                <Icon name="trash-2" className="w-5 h-5" />
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                <div className="grid grid-cols-2 gap-5 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm mt-4">
+                                                    <div>
+                                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-3 flex items-center gap-1.5"><Icon name="sun" className="w-3.5 h-3.5 text-amber-500"/> Siang ({sysPrefs.bgBrightnessDay ?? 100}%)</label>
+                                                        <input type="range" min="10" max="100" value={sysPrefs.bgBrightnessDay ?? 100} onChange={e=>setSysPrefs({...sysPrefs, bgBrightnessDay: parseInt(e.target.value)})} className="w-full accent-amber-500 cursor-pointer h-1.5 bg-slate-100 rounded-full appearance-none" />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-3 flex items-center gap-1.5"><Icon name="moon" className="w-3.5 h-3.5 text-indigo-500"/> Malam ({sysPrefs.bgBrightnessNight ?? 40}%)</label>
+                                                        <input type="range" min="10" max="100" value={sysPrefs.bgBrightnessNight ?? 40} onChange={e=>setSysPrefs({...sysPrefs, bgBrightnessNight: parseInt(e.target.value)})} className="w-full accent-indigo-500 cursor-pointer h-1.5 bg-slate-100 rounded-full appearance-none" />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            <div className="pt-6 border-t border-slate-100 grid grid-cols-2 gap-4">
+                                                {[{k:'showClock',l:'Tampilkan Jam Digital'}, {k:'showChannel',l:'Sematkan ID Channel'}, {k:'showSimulator',l:'Mode Simulasi Aktif'}, {k:'pushNotifications',l:'OS Push Notification'}, {k:'showStandbyMessage',l:'Animasi Mode Aman'}].map(opt => (
+                                                    <label key={opt.k} className="flex items-center gap-3 p-4 bg-white rounded-2xl border border-slate-200 cursor-pointer hover:border-brand-300 shadow-sm transition-colors group">
+                                                        <input type="checkbox" checked={sysPrefs[opt.k]} onChange={()=>setSysPrefs({...sysPrefs, [opt.k]: !sysPrefs[opt.k]})} className="w-5 h-5 rounded border-slate-300 text-brand-600 focus:ring-brand-500 cursor-pointer" />
+                                                        <span className="text-xs font-bold text-slate-700 group-hover:text-brand-700">{opt.l}</span>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Color Customization */}
+                                    <div className="glass-panel p-8 rounded-[2rem] border shadow-md space-y-6">
+                                        <div className="flex items-center gap-4 mb-8 border-b border-slate-100 pb-4">
+                                            <div className="p-3 bg-pink-500 rounded-2xl shadow-lg shadow-pink-500/30 text-white"><Icon name="palette" className="w-6 h-6"/></div>
+                                            <div>
+                                                <h3 className="font-black text-2xl text-slate-800 tracking-tight">Kustomisasi Warna Layar</h3>
+                                                <p className="text-xs text-slate-500 font-medium">Atur warna teks dan kartu panggilan darurat</p>
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                            <div>
+                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Warna Judul Institusi</label>
+                                                <div className="flex items-center gap-3">
+                                                    <input type="color" value={sysPrefs.displayTitleColor || '#ffffff'} onChange={e=>setSysPrefs({...sysPrefs, displayTitleColor: e.target.value})} className="h-10 w-14 rounded cursor-pointer bg-white border border-slate-200 p-0.5" />
+                                                    <input type="text" value={sysPrefs.displayTitleColor || '#ffffff'} onChange={e=>setSysPrefs({...sysPrefs, displayTitleColor: e.target.value})} className="flex-1 p-2.5 bg-white border border-slate-200 rounded-xl font-mono text-sm font-bold shadow-sm uppercase" />
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Warna Jam Digital</label>
+                                                <div className="flex items-center gap-3">
+                                                    <input type="color" value={sysPrefs.displayClockColor || '#3b82f6'} onChange={e=>setSysPrefs({...sysPrefs, displayClockColor: e.target.value})} className="h-10 w-14 rounded cursor-pointer bg-white border border-slate-200 p-0.5" />
+                                                    <input type="text" value={sysPrefs.displayClockColor || '#3b82f6'} onChange={e=>setSysPrefs({...sysPrefs, displayClockColor: e.target.value})} className="flex-1 p-2.5 bg-white border border-slate-200 rounded-xl font-mono text-sm font-bold shadow-sm uppercase" />
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Warna Panel Display</label>
+                                                <div className="flex items-center gap-3">
+                                                    <input type="color" value={sysPrefs.displayPanelBgColor || '#0f172a'} onChange={e=>setSysPrefs({...sysPrefs, displayPanelBgColor: e.target.value})} className="h-10 w-14 rounded cursor-pointer bg-white border border-slate-200 p-0.5" />
+                                                    <input type="text" value={sysPrefs.displayPanelBgColor || '#0f172a'} onChange={e=>setSysPrefs({...sysPrefs, displayPanelBgColor: e.target.value})} className="flex-1 p-2.5 bg-white border border-slate-200 rounded-xl font-mono text-sm font-bold shadow-sm uppercase" />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="pt-6 border-t border-slate-100">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-4">Tema Warna Panggilan Darurat</label>
+                                            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                                {CALL_TYPES.map(type => (
+                                                    <div key={type} className="flex flex-col gap-1.5">
+                                                        <span className="text-xs font-bold text-slate-700">{type}</span>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: COLOR_PALETTES[sysPrefs.callTypeColors?.[type] || DEFAULT_CALL_COLORS[type]]?.hex }}></span>
+                                                            <select 
+                                                                value={sysPrefs.callTypeColors?.[type] || DEFAULT_CALL_COLORS[type] || 'slate'}
+                                                                onChange={e => setSysPrefs({
+                                                                    ...sysPrefs, 
+                                                                    callTypeColors: { ...(sysPrefs.callTypeColors || DEFAULT_CALL_COLORS), [type]: e.target.value }
+                                                                })}
+                                                                className="flex-1 p-2 border border-slate-200 rounded-xl bg-white text-xs font-bold shadow-sm"
+                                                            >
+                                                                <option value="emerald">Hijau Zamrud</option>
+                                                                <option value="blue">Biru Medis</option>
+                                                                <option value="red">Merah Darurat</option>
+                                                                <option value="orange">Oranye</option>
+                                                                <option value="amber">Kuning Siaga</option>
+                                                                <option value="cyan">Cyan</option>
+                                                                <option value="purple">Ungu Assist</option>
+                                                                <option value="rose">Rose</option>
+                                                                <option value="teal">Teal</option>
+                                                                <option value="slate">Abu-abu</option>
+                                                                <option value="pink">Pink</option>
+                                                            </select>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Audio Customization */}
+                                    <div className="glass-panel p-8 rounded-[2rem] border shadow-md">
+                                        <div className="flex items-center justify-between mb-8 border-b border-slate-100 pb-4">
+                                            <div className="flex items-center gap-4">
+                                                <div className="p-3 bg-amber-500 rounded-2xl shadow-lg shadow-amber-500/30 text-white"><Icon name="music" className="w-6 h-6"/></div>
+                                                <div>
+                                                    <h3 className="font-black text-2xl text-slate-800 tracking-tight">Akustik & Indikator Audio</h3>
+                                                    <p className="text-xs text-slate-500 font-medium">Pengaturan parameter suara alarm</p>
+                                                </div>
+                                            </div>
+                                            <button onClick={playBeep} className="bg-white border border-amber-200 text-amber-700 hover:bg-amber-50 px-5 py-3 rounded-xl font-black text-sm flex items-center gap-2 shadow-sm transition-colors"><Icon name="play" className="w-4 h-4"/> Sound Check</button>
+                                        </div>
+                                        
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-10 mb-8">
+                                            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-4">Intensitas Volume Global</label>
+                                                <div className="flex items-center gap-4">
+                                                    <Icon name="volume-x" className="w-5 h-5 text-slate-300" />
+                                                    <input type="range" min="0" max="1" step="0.05" value={sysPrefs.alarmVolume} onChange={e=>setSysPrefs({...sysPrefs, alarmVolume: parseFloat(e.target.value)})} className="flex-1 accent-amber-500 h-2 bg-slate-100 rounded-full appearance-none cursor-pointer" />
+                                                    <Icon name="volume-2" className="w-5 h-5 text-amber-500" />
+                                                </div>
+                                            </div>
+                                            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-4">Durasi Interval Beep (Detik)</label>
+                                                <input type="number" min="0.1" step="0.1" value={sysPrefs.alarmDuration} onChange={e=>setSysPrefs({...sysPrefs, alarmDuration: parseFloat(e.target.value)})} className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl font-bold font-mono text-center text-lg text-slate-700 outline-none focus:border-amber-400" />
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 border-t border-slate-100 pt-8">
+                                            <div className="bg-slate-50/50 p-6 rounded-3xl border border-slate-200 hover:border-brand-200 transition-colors">
+                                                <div className="p-2.5 bg-brand-100 text-brand-600 rounded-xl w-max mb-4"><Icon name="copy" className="w-5 h-5"/></div>
+                                                <h4 className="font-black text-slate-800 mb-2 text-lg">Injeksi Audio Tunggal</h4>
+                                                <p className="text-xs text-slate-500 mb-6 leading-relaxed font-medium">Unggah satu file media untuk menggantikan seluruh nada panggil kamar secara serentak (Overwrite All).</p>
+                                                <label className="w-full p-4 border border-dashed border-brand-300 rounded-2xl bg-white hover:bg-brand-50 flex items-center justify-center cursor-pointer transition-colors text-sm font-bold text-brand-600 shadow-sm">
+                                                    <Icon name="upload" className="w-4 h-4 mr-2"/> Telusuri File MP3/WAV
+                                                    <input type="file" accept="audio/*" onChange={(e) => {
+                                                        const f = e.target.files[0]; if(!f)return;
+                                                        const r = new FileReader(); r.onloadend = () => {
+                                                            setRooms(prev => prev.map(room => ({...room, customAudio: r.result})));
+                                                            alert("Sistem Diperbarui: Audio berhasil dipetakan ke semua kamar.");
+                                                        }; r.readAsDataURL(f); e.target.value = null;
+                                                    }} className="hidden" />
+                                                </label>
+                                            </div>
+                                            
+                                            <div className="bg-slate-50/50 p-6 rounded-3xl border border-slate-200 hover:border-emerald-200 transition-colors">
+                                                <div className="p-2.5 bg-emerald-100 text-emerald-600 rounded-xl w-max mb-4"><Icon name="layers" className="w-5 h-5"/></div>
+                                                <h4 className="font-black text-slate-800 mb-2 text-lg">Smart Batch Mapping</h4>
+                                                <p className="text-xs text-slate-500 mb-6 leading-relaxed font-medium">Blok multihitung file. Sistem akan mendeteksi angka pada nama file dan memetakannya ke Channel kamar terkait.</p>
+                                                <label className="w-full p-4 border border-dashed border-emerald-300 rounded-2xl bg-white hover:bg-emerald-50 flex items-center justify-center cursor-pointer transition-colors text-sm font-bold text-emerald-600 shadow-sm">
+                                                    <Icon name="files" className="w-4 h-4 mr-2"/> Pilih Banyak File
+                                                    <input type="file" multiple accept="audio/*" onChange={async (e) => {
+                                                        const files = Array.from(e.target.files); if(!files.length)return;
+                                                        const newRooms = [...rooms]; let count = 0;
+                                                        for(const f of files){
+                                                            const match = f.name.match(/\d+/);
+                                                            if(match) {
+                                                                const ch = parseInt(match[0], 10); const idx = newRooms.findIndex(r=>r.channel===ch);
+                                                                if(idx!==-1) {
+                                                                    const base64 = await new Promise(res => { const r = new FileReader(); r.onloadend=()=>res(r.result); r.readAsDataURL(f); });
+                                                                    newRooms[idx].customAudio = base64; count++;
+                                                                }
+                                                            }
+                                                        }
+                                                        setRooms(newRooms); alert(`Proses Otomatis Selesai: Berhasil memetakan file ke ${count} kamar.`); e.target.value = null;
+                                                    }} className="hidden" />
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                </div>
+                            )}
+
+                        </div>
+                    </main>
+
+                    {/* MODBUS SIMULATOR FAB (Floating Action Button) */}
+                    {sysPrefs.showSimulator && activeTab !== 'display' && (
+                        <div className="fixed bottom-10 right-10 z-50 flex flex-col items-end">
+                            {isSimulatorOpen && (
+                                <div className="bg-white/95 backdrop-blur-2xl rounded-3xl shadow-[0_10px_50px_rgba(0,0,0,0.2)] border border-slate-200 p-7 mb-6 w-[400px] animate-in zoom-in-95 duration-300 transform origin-bottom-right">
+                                    <div className="flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
+                                        <div>
+                                            <h3 className="font-black text-slate-800 flex items-center gap-2 text-lg"><Icon name="cpu" className="text-brand-500 w-5 h-5" /> Relay Simulator</h3>
+                                            <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">Pengujian Modbus Internal</p>
+                                        </div>
+                                        <span className="text-xs font-black text-brand-600 bg-brand-50 px-3 py-1.5 rounded-xl border border-brand-100">{rooms.length} Node</span>
+                                    </div>
+                                    <div className="grid grid-cols-3 gap-4 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
+                                        {rooms.map(room => {
+                                            const isActive = room.status === 'calling';
+                                            return (
+                                                <button key={room.id} onClick={() => toggleRoomCall(room.id, isActive)} className={`p-4 rounded-2xl border-2 font-bold flex flex-col items-center transition-all duration-300 group ${isActive ? 'bg-gradient-to-b from-red-500 to-red-600 text-white border-red-600 shadow-[0_5px_15px_rgba(239,68,68,0.4)] hover:shadow-[0_5px_20px_rgba(239,68,68,0.6)] hover:-translate-y-1' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-brand-400 hover:bg-white hover:shadow-md hover:-translate-y-1'}`}>
+                                                    <span className={`text-[10px] font-mono tracking-widest uppercase mb-2 px-2 py-0.5 rounded-md ${isActive ? 'bg-black/20 text-white/90' : 'bg-slate-200/50 text-slate-400 group-hover:text-brand-500'}`}>C-{room.modbusId}</span>
+                                                    <span className="text-xs truncate w-full text-center leading-tight font-black">{room.name}</span>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+                            <button onClick={() => setIsSimulatorOpen(!isSimulatorOpen)} className={`p-5 rounded-3xl shadow-[0_10px_30px_rgba(0,0,0,0.3)] text-white transition-all duration-300 transform hover:-translate-y-2 border border-white/20 backdrop-blur-md relative overflow-hidden group ${isSimulatorOpen ? 'bg-slate-800' : 'bg-gradient-to-br from-brand-500 to-brand-700'}`}>
+                                {!isSimulatorOpen && <div className="absolute inset-0 bg-white/20 translate-y-[100%] group-hover:translate-y-0 transition-transform duration-300"></div>}
+                                <Icon name={isSimulatorOpen ? 'x' : 'cpu'} className="w-8 h-8 relative z-10" />
+                            </button>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
